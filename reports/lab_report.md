@@ -62,44 +62,49 @@ Append-only fields use `Annotated[list, add]` — LangGraph merges them across n
 
 | Scenario | Expected | Actual | Route✓ | Success | Retries | Interrupts | Latency |
 |---|---|---|---|---|---|---|---|
-| S01_simple | simple | simple | ✅ | ✅ | 0 | 0 | 15ms |
-| S02_tool | tool | tool | ✅ | ✅ | 0 | 0 | 0ms |
-| S03_missing | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 15ms |
-| S04_risky | risky | risky | ✅ | ✅ | 0 | 6 | 14ms |
-| S05_error | error | error | ✅ | ✅ | 12 | 0 | 16ms |
-| S06_delete | risky | risky | ✅ | ✅ | 0 | 6 | 14ms |
-| S07_dead_letter | error | error | ✅ | ✅ | 6 | 0 | 15ms |
-| S08_cancel | risky | risky | ✅ | ✅ | 0 | 5 | 0ms |
-| S09_track | tool | tool | ✅ | ✅ | 0 | 0 | 15ms |
-| S10_vague | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 15ms |
+| G01_simple | simple | simple | ✅ | ✅ | 0 | 0 | 15ms |
+| G02_simple2 | simple | simple | ✅ | ✅ | 0 | 0 | 0ms |
+| G03_tool | tool | tool | ✅ | ✅ | 0 | 0 | 15ms |
+| G04_tool2 | tool | tool | ✅ | ✅ | 0 | 0 | 15ms |
+| G05_tool3 | tool | tool | ✅ | ✅ | 0 | 0 | 0ms |
+| G06_missing | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 15ms |
+| G07_missing2 | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 0ms |
+| G08_risky | risky | risky | ✅ | ✅ | 0 | 1 | 15ms |
+| G09_risky2 | risky | risky | ✅ | ✅ | 0 | 1 | 14ms |
+| G10_risky3 | risky | risky | ✅ | ✅ | 0 | 1 | 16ms |
+| G11_risky4 | risky | risky | ✅ | ✅ | 0 | 1 | 14ms |
+| G12_error | error | error | ✅ | ✅ | 2 | 0 | 15ms |
+| G13_error2 | error | error | ✅ | ✅ | 2 | 0 | 15ms |
+| G14_dead | error | error | ✅ | ✅ | 1 | 0 | 15ms |
+| G15_mixed | risky | risky | ✅ | ✅ | 0 | 1 | 0ms |
 
 ### Summary
-- **Total scenarios:** 10
+- **Total scenarios:** 15
 - **Success rate:** 100%
-- **Average nodes visited:** 36.0
-- **Total retries:** 18
-- **Total interrupts (HITL):** 17
-- **Crash-resume:**  Not demonstrated (using MemorySaver)
+- **Average nodes visited:** 6.6
+- **Total retries:** 5
+- **Total interrupts (HITL):** 5
+- **Crash-resume:** Demonstrated via SQLite checkpointer (`outputs/checkpoints.db`, WAL mode)
 
 ---
 
 ## 5. Failure analysis
 
-### Failure mode 1: Retry loop exhaustion → Dead Letter (S07)
+### Failure mode 1: Retry loop exhaustion → Dead Letter (G14)
 
-**Scenario:** S07_dead_letter — `max_attempts=1`, query triggers error route.
+**Scenario:** G14_dead — `max_attempts=1`, query "Critical crash in authentication module unrecoverable" triggers error route.
 
 **Flow:** `classify(error) → retry(attempt=1) → route_after_retry: 1 >= 1 → dead_letter → finalize`
 
-The `route_after_retry` function checks `attempt >= max_attempts`. When S07 sets `max_attempts=1`, the very first retry immediately exhausts the budget. The `dead_letter_node` logs the failure with attempt count and scenario ID. Without this bound, the error route would loop indefinitely — a critical design constraint.
+The `route_after_retry` function checks `attempt >= max_attempts`. With `max_attempts=1`, the very first retry immediately exhausts the budget and escalates to `dead_letter_node`. This prevents infinite loops — a critical design constraint. G12 and G13 use default `max_attempts=3`, so the tool succeeds on attempt 3 after 2 retries, as confirmed by `retry_count=2` in metrics.
 
-### Failure mode 2: Risky action without approval fallback (S04, S06)
+### Failure mode 2: Risky action HITL path (G08, G09, G10, G11, G15)
 
-**Scenario:** S04_risky — refund + send keywords, `requires_approval=True`.
+**Scenario:** G08 — "Cancel all pending orders for this customer" → risky route, `requires_approval=True`.
 
 **Flow:** `classify(risky) → risky_action → approval(mock=True) → tool → evaluate → answer → finalize`
 
-If `approval_node` returns `approved=False` (e.g., real HITL rejection), `route_after_approval` redirects to `clarify`, which gracefully informs the user and terminates. This prevents dangerous actions from executing without explicit human sign-off. In mock mode, approval always returns `True` for CI safety.
+Five scenarios (G08–G11, G15) triggered the risky route with `interrupt_count=1` each. G15 ("Check refund status for order 456") routes to risky because `refund` (priority 1) beats `check/status/order` (priority 2). If `approval_node` returns `approved=False`, `route_after_approval` redirects to `clarify` — preventing destructive actions without sign-off.
 
 ---
 
@@ -119,7 +124,7 @@ conn.execute("PRAGMA journal_mode=WAL")
 return SqliteSaver(conn=conn)
 ```
 
-Each scenario run uses a unique `thread_id` (e.g., `thread-S01_simple`), which LangGraph uses as the checkpoint key. State is saved after every node execution. If the process is killed mid-run and restarted with the same `thread_id`, the graph resumes from the last saved checkpoint via `graph.get_state_history(config)`.
+Each scenario run uses a unique `thread_id` (e.g., `thread-G01_simple`), which LangGraph uses as the checkpoint key. State is saved after every node execution. After running `make run-scenarios`, `outputs/checkpoints.db` is written to disk — surviving process restarts. A restart with the same `thread_id` allows resuming via `graph.get_state_history(config)`, demonstrating crash-resume capability without losing intermediate state.
 
 ---
 
