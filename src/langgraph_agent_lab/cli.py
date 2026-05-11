@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Annotated
 
@@ -33,13 +34,24 @@ def run_scenarios(
     for scenario in scenarios:
         state = initial_state(scenario)
         run_config = {"configurable": {"thread_id": state["thread_id"]}}
+        t0 = time.monotonic()
         final_state = graph.invoke(state, config=run_config)
-        metrics.append(metric_from_state(final_state, scenario.expected_route.value, scenario.requires_approval))
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        metrics.append(
+            metric_from_state(
+                final_state,
+                scenario.expected_route.value,
+                scenario.requires_approval,
+                latency_ms=latency_ms,
+            )
+        )
     report = summarize_metrics(metrics)
     write_metrics(report, output)
     if cfg.get("report_path"):
         write_report(report, cfg["report_path"])
     typer.echo(f"Wrote metrics to {output}")
+    n_success = sum(m.success for m in metrics)
+    typer.echo(f"Success rate: {report.success_rate:.0%}  ({n_success}/{len(metrics)} scenarios)")
 
 
 @app.command("validate-metrics")
@@ -50,6 +62,22 @@ def validate_metrics(metrics: Annotated[Path, typer.Option("--metrics")]) -> Non
     if report.total_scenarios < 6:
         raise typer.BadParameter("Expected at least 6 scenarios")
     typer.echo(f"Metrics valid. success_rate={report.success_rate:.2%}")
+
+
+@app.command("export-diagram")
+def export_diagram(
+    output: Annotated[Path, typer.Option("--output")] = Path("outputs/graph.mmd"),
+) -> None:
+    """Export a Mermaid diagram of the compiled graph (Bonus extension)."""
+    graph = build_graph()
+    try:
+        diagram = graph.get_graph().draw_mermaid()
+    except Exception as exc:
+        typer.echo(f"Could not draw graph: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(diagram, encoding="utf-8")
+    typer.echo(f"Graph diagram written to {output}")
 
 
 if __name__ == "__main__":

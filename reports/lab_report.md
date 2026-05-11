@@ -1,38 +1,11 @@
-"""Report generation helper."""
-
-from __future__ import annotations
-
-import datetime
-from pathlib import Path
-
-from .metrics import MetricsReport
-
-
-def render_report(metrics: MetricsReport) -> str:
-    """Generate a complete lab report from metrics data."""
-    today = datetime.date.today().isoformat()
-
-    # Build scenario results table
-    rows = []
-    for m in metrics.scenario_metrics:
-        status = "✅" if m.success else "❌"
-        match = "✅" if m.actual_route == m.expected_route else "❌"
-        rows.append(
-            f"| {m.scenario_id} | {m.expected_route} | {m.actual_route or 'N/A'} "
-            f"| {match} | {status} | {m.retry_count} | {m.interrupt_count} | {m.latency_ms}ms |"
-        )
-    scenario_table = "\n".join(rows)
-
-    resume_str = "✅ Demonstrated via SQLite checkpointer" if metrics.resume_success else "❌ Not demonstrated (using MemorySaver)"
-
-    return f"""# Day 08 Lab Report
+# Day 08 Lab Report
 
 ## 1. Team / student
 
 - **Name:** Bui The Cong
 - **Student ID:** 2A202600008
-- **Repo:** 2A202600008-BuiTheCong-phase2-track3-day8-langgraph-agent
-- **Date:** {today}
+- **Repo:** https://github.com/buiftheescoong/2A202600008-BuiTheCong-phase2-track3-day8-langgraph-agent.git
+- **Date:** 2026-05-11
 
 ---
 
@@ -89,15 +62,24 @@ Append-only fields use `Annotated[list, add]` — LangGraph merges them across n
 
 | Scenario | Expected | Actual | Route✓ | Success | Retries | Interrupts | Latency |
 |---|---|---|---|---|---|---|---|
-{scenario_table}
+| S01_simple | simple | simple | ✅ | ✅ | 0 | 0 | 47ms |
+| S02_tool | tool | tool | ✅ | ✅ | 0 | 0 | 16ms |
+| S03_missing | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 14ms |
+| S04_risky | risky | risky | ✅ | ✅ | 0 | 3 | 16ms |
+| S05_error | error | error | ✅ | ✅ | 6 | 0 | 30ms |
+| S06_delete | risky | risky | ✅ | ✅ | 0 | 3 | 16ms |
+| S07_dead_letter | error | error | ✅ | ✅ | 3 | 0 | 14ms |
+| S08_cancel | risky | risky | ✅ | ✅ | 0 | 2 | 32ms |
+| S09_track | tool | tool | ✅ | ✅ | 0 | 0 | 14ms |
+| S10_vague | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 0ms |
 
 ### Summary
-- **Total scenarios:** {metrics.total_scenarios}
-- **Success rate:** {metrics.success_rate:.0%}
-- **Average nodes visited:** {metrics.avg_nodes_visited:.1f}
-- **Total retries:** {metrics.total_retries}
-- **Total interrupts (HITL):** {metrics.total_interrupts}
-- **Crash-resume:** {resume_str}
+- **Total scenarios:** 10
+- **Success rate:** 100%
+- **Average nodes visited:** 17.1
+- **Total retries:** 9
+- **Total interrupts (HITL):** 8
+- **Crash-resume:** ❌ Not demonstrated (using MemorySaver)
 
 ---
 
@@ -172,10 +154,3 @@ If given one more day, the top priorities would be:
 4. **Exponential backoff**: Add `backoff_ms` metadata to retry events to simulate realistic retry timing behavior.
 
 5. **Observability**: Integrate LangSmith tracing for production monitoring of node latencies, retry rates, and routing distribution.
-"""
-
-
-def write_report(metrics: MetricsReport, output_path: str | Path) -> None:
-    path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_report(metrics), encoding="utf-8")

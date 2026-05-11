@@ -1,0 +1,53 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+    __start__(["START"])
+    intake["intake\n(normalize query)"]
+    classify["classify\n(keyword routing)"]
+    answer["answer\n(generate response)"]
+    tool["tool\n(mock tool call)"]
+    evaluate{"evaluate\n(done?)"}
+    clarify["clarify\n(ask for details)"]
+    risky_action["risky_action\n(prepare action)"]
+    approval{"approval\n(HITL gate)"}
+    retry["retry\n(increment attempt)"]
+    dead_letter["dead_letter\n(log failure)"]
+    finalize["finalize\n(audit event)"]
+    __end__(["END"])
+
+    __start__ --> intake
+    intake --> classify
+
+    classify -->|"simple"| answer
+    classify -->|"tool"| tool
+    classify -->|"missing_info"| clarify
+    classify -->|"risky"| risky_action
+    classify -->|"error"| retry
+
+    tool --> evaluate
+    evaluate -->|"success"| answer
+    evaluate -->|"needs_retry"| retry
+
+    retry -->|"attempt < max"| tool
+    retry -->|"attempt >= max"| dead_letter
+
+    risky_action --> approval
+    approval -->|"approved=True"| tool
+    approval -->|"approved=False"| clarify
+
+    answer --> finalize
+    clarify --> finalize
+    dead_letter --> finalize
+    finalize --> __end__
+
+    classDef default fill:#f2f0ff,stroke:#7c6af7,line-height:1.2
+    classDef startEnd fill:#bfb6fc,stroke:#7c6af7,font-weight:bold
+    classDef gate fill:#fff3cd,stroke:#f0a500
+    classDef danger fill:#fde8e8,stroke:#e05c5c
+
+    class __start__,__end__ startEnd
+    class evaluate,approval gate
+    class dead_letter danger
