@@ -42,7 +42,9 @@ def build_checkpointer(kind: str = "memory", database_url: str | None = None) ->
 
     if kind == "postgres":
         try:
-            from langgraph.checkpoint.postgres import PostgresSaver
+            from langgraph.checkpoint.postgres import (
+                PostgresSaver,  # type: ignore[import-not-found]
+            )
         except ImportError as exc:
             raise RuntimeError(
                 "Postgres checkpointer requires: pip install langgraph-checkpoint-postgres"

@@ -34,7 +34,8 @@ def build_graph(checkpointer: Any | None = None) -> Any:
     """Build and compile the LangGraph workflow.
 
     Architecture decisions implemented:
-    - intake -> classify: normalization + keyword-based routing (priority: risky > tool > missing_info > error > simple)
+    - intake -> classify: normalization + keyword-based routing
+      (priority: risky > tool > missing_info > error > simple)
     - tool -> evaluate: creates the retry loop via conditional edge ("done?" check)
     - risky path: requires HITL approval_node before executing tool/action
     - retry loop: bounded by max_attempts via route_after_retry -> dead_letter on exhaustion

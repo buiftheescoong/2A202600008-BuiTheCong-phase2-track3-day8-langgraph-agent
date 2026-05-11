@@ -62,24 +62,24 @@ Append-only fields use `Annotated[list, add]` — LangGraph merges them across n
 
 | Scenario | Expected | Actual | Route✓ | Success | Retries | Interrupts | Latency |
 |---|---|---|---|---|---|---|---|
-| S01_simple | simple | simple | ✅ | ✅ | 0 | 0 | 47ms |
-| S02_tool | tool | tool | ✅ | ✅ | 0 | 0 | 16ms |
-| S03_missing | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 14ms |
-| S04_risky | risky | risky | ✅ | ✅ | 0 | 3 | 16ms |
-| S05_error | error | error | ✅ | ✅ | 6 | 0 | 30ms |
-| S06_delete | risky | risky | ✅ | ✅ | 0 | 3 | 16ms |
-| S07_dead_letter | error | error | ✅ | ✅ | 3 | 0 | 14ms |
-| S08_cancel | risky | risky | ✅ | ✅ | 0 | 2 | 32ms |
-| S09_track | tool | tool | ✅ | ✅ | 0 | 0 | 14ms |
-| S10_vague | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 0ms |
+| S01_simple | simple | simple | ✅ | ✅ | 0 | 0 | 15ms |
+| S02_tool | tool | tool | ✅ | ✅ | 0 | 0 | 0ms |
+| S03_missing | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 15ms |
+| S04_risky | risky | risky | ✅ | ✅ | 0 | 6 | 14ms |
+| S05_error | error | error | ✅ | ✅ | 12 | 0 | 16ms |
+| S06_delete | risky | risky | ✅ | ✅ | 0 | 6 | 14ms |
+| S07_dead_letter | error | error | ✅ | ✅ | 6 | 0 | 15ms |
+| S08_cancel | risky | risky | ✅ | ✅ | 0 | 5 | 0ms |
+| S09_track | tool | tool | ✅ | ✅ | 0 | 0 | 15ms |
+| S10_vague | missing_info | missing_info | ✅ | ✅ | 0 | 0 | 15ms |
 
 ### Summary
 - **Total scenarios:** 10
 - **Success rate:** 100%
-- **Average nodes visited:** 17.1
-- **Total retries:** 9
-- **Total interrupts (HITL):** 8
-- **Crash-resume:** ❌ Not demonstrated (using MemorySaver)
+- **Average nodes visited:** 36.0
+- **Total retries:** 18
+- **Total interrupts (HITL):** 17
+- **Crash-resume:**  Not demonstrated (using MemorySaver)
 
 ---
 
